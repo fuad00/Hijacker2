@@ -13,8 +13,8 @@ android {
         // foreground-service-type). Everything runs as root, so runtime permissions and
         // scoped storage are irrelevant here.
         targetSdkVersion 29
-        versionCode 38
-        versionName "v2.0-op7-qcacld"
+        versionCode 39
+        versionName "2.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
         // Our device (OnePlus 7 Pro) is arm64; the native CSV parser only needs arm64-v8a.
@@ -30,9 +30,22 @@ android {
         }
     }
 
+    signingConfigs {
+        // Stable key committed to the repo on purpose: this is a personal pentest-tool
+        // fork, so the key only exists to keep release APKs installable and updatable
+        // over each other (no uninstall needed). It protects nothing sensitive.
+        release {
+            storeFile file("../keystore/hijacker2.jks")
+            storePassword "hijacker2"
+            keyAlias "hijacker2"
+            keyPassword "hijacker2"
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
+            signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }

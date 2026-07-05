@@ -22,6 +22,7 @@ import android.util.Log;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintWriter;
 
 import static com.hijacker.AP.getAPByMac;
 import static com.hijacker.MainActivity.BAND_2;
@@ -56,6 +57,10 @@ import static com.hijacker.Shell.runOne;
 class Airodump{
     private static int channel = 0;
     private static boolean forWPA = false, forWEP = false, running = false;
+    // True while monitor mode is being enabled but airodump hasn't launched yet. During
+    // this window running==true (UI shows "stop") but there is legitimately no airodump
+    // process, so the watchdog must not treat it as a crash.
+    private static volatile boolean starting = false;
     private static String mac = null;
     private static String capFile = null;
     final static Runnable cap_runnable = new Runnable(){
@@ -184,6 +189,7 @@ class Airodump{
         stop();
 
         final String final_cmd = cmd;
+        starting = true;
         running = true;
         new Thread(new Runnable(){
             @Override
@@ -201,11 +207,16 @@ class Airodump{
                     });
                     runOne(enable_monMode);
                 }
-                if(!Airodump.isRunning()) return;       //user stopped while monitor was coming up
+                if(!Airodump.isRunning()){              //user stopped while monitor was coming up
+                    starting = false;
+                    return;
+                }
                 if(debug) Log.d("HIJACKER/Airodump.start", final_cmd);
                 try{
                     int mode = channel==0 ? 0 : 1;
                     Process process = execRoot(final_cmd);
+                    starting = false;                   //airodump launched -> watchdog may supervise it
+                    startChannelHopper();               //qcacld can't hop channels itself; drive it with iw
                     last_action = System.currentTimeMillis();
                     last_airodump = final_cmd;
                     BoundedBufferedReader in = new BoundedBufferedReader(new InputStreamReader(process.getErrorStream()));
@@ -238,6 +249,7 @@ class Airodump{
     }
     static void stop(){
         last_action = System.currentTimeMillis();
+        starting = false;
         running = false;
         runInHandler(new Runnable(){
             @Override
@@ -273,6 +285,43 @@ class Airodump{
     }
     static boolean isRunning(){
         return running;
+    }
+    static boolean isStarting(){
+        return starting;
+    }
+    /*
+        Qualcomm's qcacld-3.0 is a FullMAC driver: airodump-ng's own channel switching
+        (wireless-ext ioctl) is silently ignored, so with --band bg the card never leaves
+        its current channel and airodump captures nothing. We therefore drive the channel
+        externally with the bundled iw (nl80211, which the driver DOES honour), cycling
+        while airodump is alive. The loop self-terminates when airodump exits, and runs
+        through a LOGIN su shell so it has CAP_NET_ADMIN to set the channel.
+    */
+    private static void startChannelHopper(){
+        try{
+            String dir = airodump_dir.substring(0, airodump_dir.lastIndexOf('/') + 1);
+            String iwbin = dir + "iw";
+            String chans;
+            if(channel != 0)               chans = Integer.toString(channel);   //locked (e.g. handshake capture)
+            else if(band == BAND_5)        chans = "36 40 44 48 149 153 157 161";
+            else if(band == BAND_BOTH)     chans = "1 6 11 2 3 4 5 7 8 9 10 12 13 36 40 44 48 149 153 157 161";
+            else                           chans = "1 6 11 2 3 4 5 7 8 9 10 12 13";
+            String loop =
+                "sleep 2; " +
+                "while " + busybox + " pidof airodump-ng >/dev/null 2>&1; do " +
+                    "for c in " + chans + "; do " +
+                        iwbin + " dev " + iface + " set channel $c 2>/dev/null; " +
+                        busybox + " pidof airodump-ng >/dev/null 2>&1 || break; " +
+                        "sleep 1; " +
+                    "done; " +
+                "done";
+            Process hp = Runtime.getRuntime().exec("su");
+            PrintWriter w = new PrintWriter(hp.getOutputStream());
+            w.print(loop + "\nexit\n");
+            w.flush();
+        }catch(IOException e){
+            Log.e("HIJACKER/Airodump", "Channel hopper failed to start: " + e.toString());
+        }
     }
     public static void addAP(String essid, String mac, String enc, String cipher, String auth,
                              int pwr, int beacons, int data, int ivs, int ch){

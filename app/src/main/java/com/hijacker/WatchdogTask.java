@@ -75,7 +75,10 @@ class WatchdogTask extends AsyncTask<Void, String, Boolean>{
             while(!isCancelled()){
                 if(debug) Log.d("HIJACKER/watchdog", "Watchdog watching...");
 
-                check(PROCESS_AIRODUMP, Airodump.isRunning(), con.getString(R.string.airodump_still_running), con.getString(R.string.airodump_not_running));
+                //Don't flag "not running" while monitor mode is still being enabled (~35s on
+                //qcacld): during that window Airodump.isRunning() is true but airodump hasn't
+                //been launched yet, which is expected — not a crash.
+                check(PROCESS_AIRODUMP, Airodump.isRunning() && !Airodump.isStarting(), con.getString(R.string.airodump_still_running), con.getString(R.string.airodump_not_running));
                 check(PROCESS_AIREPLAY, aireplay_running!=0, con.getString(R.string.aireplay_still_running), con.getString(R.string.aireplay_not_running));
                 check(PROCESS_MDK_BF, bf, con.getString(R.string.mdk_still_running), con.getString(R.string.mdk_not_running));
                 check(PROCESS_MDK_DOS, ados, con.getString(R.string.mdk_still_running), con.getString(R.string.mdk_not_running));

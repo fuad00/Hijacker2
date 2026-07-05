@@ -1,47 +1,80 @@
 apply plugin: 'com.android.application'
+
 android {
-    compileSdkVersion 29
+    namespace 'com.hijacker'
+    compileSdk 34
+
     defaultConfig {
         applicationId "com.hijacker"
-        minSdkVersion 21
+        minSdkVersion 24
+        // Kept at 29 on purpose: this is a root tool that manages the Wi-Fi interface
+        // directly (raw sockets via login-su), so we want the pre-Android-11 framework
+        // behaviour and NOT the targetSdk 31+ manifest requirements (exported /
+        // foreground-service-type). Everything runs as root, so runtime permissions and
+        // scoped storage are irrelevant here.
         targetSdkVersion 29
-        versionCode 36
-        versionName "v1.7"
+        versionCode 38
+        versionName "v2.0-op7-qcacld"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        // Our device (OnePlus 7 Pro) is arm64; the native CSV parser only needs arm64-v8a.
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+
         externalNativeBuild {
             cmake {
                 cppFlags ""
+                arguments "-DANDROID_STL=c++_shared"
             }
         }
     }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+
+    buildFeatures {
+        buildConfig true
+    }
+
     externalNativeBuild {
         cmake {
             path "CMakeLists.txt"
         }
     }
-    ndkVersion = '21.0.6113669'
+
+    ndkVersion = '26.1.10909125'
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
 }
+
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
-    androidTestImplementation('androidx.test.espresso:espresso-core:3.1.0', {
+
+    androidTestImplementation('androidx.test.espresso:espresso-core:3.5.1', {
         exclude group: 'com.android.support', module: 'support-annotations'
     })
-    implementation 'androidx.appcompat:appcompat:1.1.0'
-    implementation 'androidx.legacy:legacy-support-v4:1.0.0'
-    implementation 'com.google.android.material:material:1.1.0'
-    testImplementation 'junit:junit:4.12'
-    implementation 'androidx.cardview:cardview:1.0.0'
+    testImplementation 'junit:junit:4.13.2'
 
-    implementation 'com.google.android.material:material:1.1.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.core:core:1.12.0'
+    implementation 'androidx.fragment:fragment:1.6.2'
+    implementation 'androidx.lifecycle:lifecycle-runtime:2.7.0'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel:2.7.0'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.preference:preference:1.2.1'
+    implementation 'androidx.cardview:cardview:1.0.0'
+    implementation 'androidx.legacy:legacy-support-v4:1.0.0'
 }
 
 repositories {
-    /libs/
     google()
+    mavenCentral()
 }

@@ -61,6 +61,7 @@ import static com.hijacker.MainActivity.cont_on_fail;
 import static com.hijacker.MainActivity.currentFragment;
 import static com.hijacker.MainActivity.custom_chroot_cmd;
 import static com.hijacker.MainActivity.debug;
+import static com.hijacker.MainActivity.execRoot;
 import static com.hijacker.MainActivity.iface;
 import static com.hijacker.MainActivity.last_action;
 import static com.hijacker.MainActivity.last_reaver;
@@ -403,7 +404,7 @@ public class ReaverFragment extends Fragment{
                     publishProgress(getString(R.string.chroot_warning));
                     if(bootkali_init_bin.equals(NETHUNTER_BOOTKALI_BASH)){
                         //Not in nethunter, need to initialize the chroot environment
-                        Runtime.getRuntime().exec("su -c " + bootkali_init_bin);       //Make sure kali has booted
+                        execRoot(bootkali_init_bin);       //Make sure kali has booted (login-su: mount needs CAP_SYS_ADMIN)
                     }
                     args += " -K 1";
                     cmd = "chroot " + MainActivity.chroot_dir + " /bin/bash -c \'" + get_chroot_env(getActivity()) + "reaver " + args + "\'";
@@ -416,9 +417,9 @@ public class ReaverFragment extends Fragment{
                     in.print(cmd + "\nexit\n");
                     in.flush();
                 }else{
-                    cmd = "su -c " + prefix + " " + reaver_dir + " " + args;
+                    cmd = prefix + " " + reaver_dir + " " + args;
                     publishProgress("\nRunning: " + cmd);
-                    Process dc = Runtime.getRuntime().exec(cmd);
+                    Process dc = execRoot(cmd);
                     out = new BufferedReader(new InputStreamReader(dc.getInputStream()));
                 }
                 if(debug) Log.d("HIJACKER/ReaverFragment", cmd);

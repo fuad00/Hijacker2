@@ -1041,7 +1041,16 @@ public class MainActivity extends AppCompatActivity{
         }
     }
     public void main(){
-        runOne(enable_monMode);
+        // enable_monMode can block ~30-40s on qcacld (con_mode firmware re-init), so it
+        // MUST run off the UI thread or Android will ANR. Pre-warming monitor at launch
+        // makes the first airodump instant. airOnStartup is chained after monitor is ready.
+        new Thread(new Runnable(){
+            @Override
+            public void run(){
+                if(enable_monMode!=null && !enable_monMode.trim().isEmpty()) runOne(enable_monMode);
+                if(airOnStartup) Airodump.startClean();
+            }
+        }).start();
 
         stop(PROCESS_AIRODUMP);
         stop(PROCESS_AIREPLAY);
@@ -1049,14 +1058,33 @@ public class MainActivity extends AppCompatActivity{
         stop(PROCESS_MDK_DOS);
         stop(PROCESS_AIRCRACK);
         stop(PROCESS_REAVER);
-        if(airOnStartup) Airodump.startClean();
     }
 
+    /*
+        Run a privileged command through a LOGIN su shell (Runtime.exec("su") + command fed
+        on stdin), NOT "su -c <cmd>".
+
+        Why: Magisk gives a login su shell full Linux capabilities (CapEff=0x3fffffffff),
+        but "su -c <cmd>" inherits the caller's effective caps. This app runs with CapEff=0,
+        so "su -c airodump-ng ..." has neither CAP_NET_RAW (raw capture socket) nor
+        CAP_NET_ADMIN (bring the interface up / set channel), and not even CAP_DAC_OVERRIDE
+        to traverse its own 0700 files/bin -> airodump/aireplay die instantly
+        ("Airodump is not running!"). A login su shell fixes all of it. 'exec' replaces the
+        shell with the tool so pidof/kill and stream reading behave exactly like the old
+        "su -c" Process.
+    */
+    public static Process execRoot(String command) throws IOException{
+        Process p = Runtime.getRuntime().exec("su");
+        PrintWriter w = new PrintWriter(p.getOutputStream());
+        w.print("exec " + command + "\n");
+        w.flush();
+        return p;
+    }
     public static void _startAireplay(final String str){
         try{
-            String cmd = "su -c " + prefix + " " + aireplay_dir + " -D --ignore-negative-one " + str + " " + iface;
+            String cmd = prefix + " " + aireplay_dir + " -D --ignore-negative-one " + str + " " + iface;
             if(debug) Log.d("HIJACKER/_startAireplay", cmd);
-            Runtime.getRuntime().exec(cmd);
+            execRoot(cmd);
             last_action = System.currentTimeMillis();
             last_aireplay = cmd;
         }catch(IOException e){ Log.e("HIJACKER/Exception", "Caught Exception in _startAireplay() start block: " + e.toString()); }
@@ -1100,11 +1128,11 @@ public class MainActivity extends AppCompatActivity{
     //There are 2 mdk3 binaries with different names, so the app can easily stop each one separately
     public static void startBeaconFlooding(String str){
         try{
-            String cmd = "su -c " + prefix + " " + mdk3bf_dir + " " + iface + " b -m ";
+            String cmd = prefix + " " + mdk3bf_dir + " " + iface + " b -m ";
             if(str!=null) cmd += str;
             if(debug) Log.d("HIJACKER/MDK3", cmd);
             last_mdk = cmd;
-            Runtime.getRuntime().exec(cmd);
+            execRoot(cmd);
         }catch(IOException e){ Log.e("HIJACKER/startBF", e.toString()); }
         last_action = System.currentTimeMillis();
         bf = true;
@@ -1119,11 +1147,11 @@ public class MainActivity extends AppCompatActivity{
     }
     public static void startAdos(String str){
         try{
-            String cmd = "su -c " + prefix + " " + mdk3dos_dir + " " + iface + " a -m";
+            String cmd = prefix + " " + mdk3dos_dir + " " + iface + " a -m";
             cmd += str==null ? "" : " -i " + str;
             if(debug) Log.d("HIJACKER/MDK3", cmd);
             last_mdk = cmd;
-            Runtime.getRuntime().exec(cmd);
+            execRoot(cmd);
         }catch(IOException e){ Log.e("HIJACKER/startAdos", e.toString()); }
         last_action = System.currentTimeMillis();
         ados = true;
@@ -1273,8 +1301,13 @@ public class MainActivity extends AppCompatActivity{
         deauthWait = Integer.parseInt(pref.getString("deauthWait", Integer.toString(deauthWait)));
         chroot_dir = pref.getString("chroot_dir", chroot_dir);
         monstart = pref.getBoolean("monstart", monstart);
-        enable_monMode = pref.getString("enable_monMode", enable_monMode);
-        disable_monMode = pref.getString("disable_monMode", disable_monMode);
+        //A blank stored value falls back to the built-in qcacld default (enable_monMode/
+        //disable_monMode already hold the R.string default here). This way upgrading an
+        //install that had an empty monitor command still gets internal-card monitor mode.
+        String stored_em = pref.getString("enable_monMode", enable_monMode);
+        if(stored_em!=null && !stored_em.trim().isEmpty()) enable_monMode = stored_em;
+        String stored_dm = pref.getString("disable_monMode", disable_monMode);
+        if(stored_dm!=null && !stored_dm.trim().isEmpty()) disable_monMode = stored_dm;
         enable_on_airodump = pref.getBoolean("enable_on_airodump", enable_on_airodump);
         show_notif = pref.getBoolean("show_notif", show_notif);
         show_details = pref.getBoolean("show_details", show_details);

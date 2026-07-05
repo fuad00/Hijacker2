@@ -37,6 +37,7 @@ import static com.hijacker.MainActivity.debug;
 import static com.hijacker.MainActivity.delete_extra;
 import static com.hijacker.MainActivity.enable_monMode;
 import static com.hijacker.MainActivity.enable_on_airodump;
+import static com.hijacker.MainActivity.execRoot;
 import static com.hijacker.MainActivity.getLastLine;
 import static com.hijacker.MainActivity.iface;
 import static com.hijacker.MainActivity.last_action;
@@ -164,7 +165,7 @@ class Airodump{
         start();
     }
     static void start(){
-        String cmd = "su -c " + prefix + " " + airodump_dir + " --update 1 --berlin 1 --band ";
+        String cmd = prefix + " " + airodump_dir + " --update 1 --berlin 1 --band ";
 
         if(band==BAND_5 || band==BAND_BOTH) cmd += "a";
         if(band==BAND_2 || band==BAND_BOTH) cmd += "bg";
@@ -180,7 +181,6 @@ class Airodump{
 
         cmd += iface;
 
-        if(enable_on_airodump) runOne(enable_monMode);
         stop();
 
         final String final_cmd = cmd;
@@ -188,10 +188,24 @@ class Airodump{
         new Thread(new Runnable(){
             @Override
             public void run(){
+                // Put the internal card in monitor mode BEFORE launching airodump.
+                // On qcacld the first con_mode switch takes ~30-40s; runOne() blocks until
+                // enable_monMode finishes. We are on a background thread here, so blocking is
+                // safe (no ANR). enable_monMode is idempotent -> instant if already monitor.
+                if(enable_on_airodump && enable_monMode!=null && !enable_monMode.trim().isEmpty()){
+                    runInHandler(new Runnable(){
+                        @Override
+                        public void run(){
+                            Snackbar.make(rootView, "Enabling monitor mode (~35s)…", Snackbar.LENGTH_LONG).show();
+                        }
+                    });
+                    runOne(enable_monMode);
+                }
+                if(!Airodump.isRunning()) return;       //user stopped while monitor was coming up
                 if(debug) Log.d("HIJACKER/Airodump.start", final_cmd);
                 try{
                     int mode = channel==0 ? 0 : 1;
-                    Process process = Runtime.getRuntime().exec(final_cmd);
+                    Process process = execRoot(final_cmd);
                     last_action = System.currentTimeMillis();
                     last_airodump = final_cmd;
                     BoundedBufferedReader in = new BoundedBufferedReader(new InputStreamReader(process.getErrorStream()));

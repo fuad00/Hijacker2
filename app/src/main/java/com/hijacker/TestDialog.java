@@ -49,6 +49,7 @@ import static com.hijacker.MainActivity.airodump_dir;
 import static com.hijacker.MainActivity.aireplay_dir;
 import static com.hijacker.MainActivity.reaver_dir;
 import static com.hijacker.MainActivity.enable_monMode;
+import static com.hijacker.MainActivity.execRoot;
 import static com.hijacker.MainActivity.getPIDs;
 import static com.hijacker.MainActivity.runInHandler;
 import static com.hijacker.MainActivity.status;
@@ -66,10 +67,10 @@ public class TestDialog extends DialogFragment {
         public void run(){
             final boolean results[] = {false, false, false, false, false};
             final String cmdMonMode = enable_monMode;
-            final String cmdAirodump = "su -c " + prefix + " " + airodump_dir + " " + iface;
-            final String cmdAireplay = "su -c " + prefix + " " + aireplay_dir + " --deauth 0 -a 11:22:33:44:55:66 " + iface;
-            final String cmdMdk = "su -c " + prefix + " " + mdk3bf_dir + " " + iface + " b -m";
-            final String cmdReaver = "su -c " + prefix + " " + reaver_dir + " -i " + iface + " -b 00:11:22:33:44:55 -c 2";
+            final String cmdAirodump = prefix + " " + airodump_dir + " " + iface;
+            final String cmdAireplay = prefix + " " + aireplay_dir + " --deauth 0 -a 11:22:33:44:55:66 " + iface;
+            final String cmdMdk = prefix + " " + mdk3bf_dir + " " + iface + " b -m";
+            final String cmdReaver = prefix + " " + reaver_dir + " -i " + iface + " -b 00:11:22:33:44:55 -c 2";
             try{
                 stop(PROCESS_AIRODUMP);
                 stop(PROCESS_AIREPLAY);
@@ -98,7 +99,7 @@ public class TestDialog extends DialogFragment {
 
                 //Airodump
                 Log.d("HIJACKER/test_thread", cmdAirodump);
-                Runtime.getRuntime().exec(cmdAirodump);
+                execRoot(cmdAirodump);
                 Thread.sleep(TEST_WAIT);
 
                 if(getPIDs(PROCESS_AIRODUMP).size()==0) thread.interrupt();
@@ -120,7 +121,7 @@ public class TestDialog extends DialogFragment {
 
                 //Aireplay
                 Log.d("HIJACKER/test_thread", cmdAireplay);
-                Runtime.getRuntime().exec(cmdAireplay);
+                execRoot(cmdAireplay);
                 Thread.sleep(TEST_WAIT);
 
                 if(getPIDs(PROCESS_AIREPLAY).size()==0) results[1] = false;
@@ -142,7 +143,7 @@ public class TestDialog extends DialogFragment {
 
                 //MDK
                 Log.d("HIJACKER/test_thread", cmdMdk);
-                Runtime.getRuntime().exec(cmdMdk);
+                execRoot(cmdMdk);
                 Thread.sleep(TEST_WAIT);
 
                 if(getPIDs(PROCESS_MDK_BF).size()==0) results[2] = false;
@@ -164,7 +165,7 @@ public class TestDialog extends DialogFragment {
 
                 //Reaver
                 Log.d("HIJACKER/test_thread", cmdReaver);
-                Runtime.getRuntime().exec(cmdReaver);
+                execRoot(cmdReaver);
                 Thread.sleep(TEST_WAIT);
 
                 if(getPIDs(PROCESS_REAVER).size()==0) results[3] = false;

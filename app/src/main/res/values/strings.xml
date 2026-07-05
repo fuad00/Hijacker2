@@ -323,9 +323,14 @@
     <string name="prefix" translatable="false"></string>
     <string name="chroot_dir" translatable="false">/data/local/nhsystem/kalifs</string>
     <string name="monstart" translatable="false">false</string>
-    <string name="enable_monMode" translatable="false"></string>
-    <string name="disable_monMode" translatable="false"></string>
-    <string name="enable_on_airodump" translatable="false">false</string>
+    <!-- qcacld-3.0 (OnePlus 7 Pro internal Wi-Fi) monitor mode via con_mode.
+         Uses tee (mksh can't open sysfs via '>'), waits until the card is actually
+         radiotap/monitor (ARPHRD 803) since the firmware re-init takes ~30-40s, then
+         brings the interface up. Idempotent: no-op + no wait if already in monitor.
+         Runs through Hijacker's login-su Shell, which has full capabilities. -->
+    <string name="enable_monMode" translatable="false">if ! cat /sys/class/net/wlan0/type 2>/dev/null | grep -qx 803; then echo 4 | tee /sys/module/wlan/parameters/con_mode >/dev/null; i=0; while [ $i -lt 40 ]; do cat /sys/class/net/wlan0/type 2>/dev/null | grep -qx 803 &amp;&amp; break; sleep 1; i=$((i+1)); done; sleep 2; fi; ip link set wlan0 up</string>
+    <string name="disable_monMode" translatable="false">echo 0 | tee /sys/module/wlan/parameters/con_mode >/dev/null</string>
+    <string name="enable_on_airodump" translatable="false">true</string>
     <string name="deauthWait" translatable="false">10</string>
     <string name="show_notif" translatable="false">true</string>
     <string name="show_details" translatable="false">true</string>
